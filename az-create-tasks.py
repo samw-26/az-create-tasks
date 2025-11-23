@@ -23,12 +23,14 @@ class TaskCreator:
         for task in self.tasks:
             for key, value in task.items():
                 task[key] = re.sub(
-                    r'\$((?P<index>[0-9]+)|(?P<key>\w+))',
+                    r'(?P<escape>\\)?\$((?P<index>[0-9]+)|(?P<key>\w+))',
                     self._get_sub_value,
                     value
                 )
 
     def _get_sub_value(self, placeholder: re.Match) -> str:
+        if placeholder.group('escape'):
+            return placeholder.group()[1:]
         placeholder_index = placeholder.group('index')
         key = placeholder.group('key')
         index = (
