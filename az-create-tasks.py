@@ -9,16 +9,15 @@ from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient, JsonPat
 import keyring
 from getpass import getpass
 
-
-class TaskCreator:
+class TemplateParser:
     def __init__(self, args: argparse.Namespace):
         self.args = args
-        self.template_file = self.args.template_file
-        self.tasks = self.template_file['tasks']
-        self.values = self.args.values
-        self.set_vars = create_var_dict(self.args.set)
+        self.template_file: dict = self.args.template_file
+        self.tasks: list[dict] = self.template_file['tasks']
+        self.values: list[str] = self.args.values
+        self.set_vars: dict = create_var_dict(self.args.set)
         self._substitute_placeholders()
-
+    
     def _substitute_placeholders(self):
         for task in self.tasks:
             for key, value in task.items():
@@ -51,6 +50,17 @@ class TaskCreator:
             return self.set_vars[key]
 
         return placeholder.group()
+
+
+class TaskCreator:
+    def __init__(self, args: argparse.Namespace, client: WorkItemTrackingClient, tasks: list[dict]):
+        self.args = args
+        self.client = client
+        self.tasks = tasks
+        self.base_url = client.normalized_url
+
+    def _get_work_item_url(self):
+        return f'https://dev.azure.com/{self.args.organization}'
 
     def _create_task(self, context):
         patch_document = [
@@ -183,8 +193,8 @@ def main():
     )
     args = parser.parse_args()
     if args.dry_run:
-        dry_task_creator = TaskCreator(args)
-        pp(dry_task_creator.template_file, width=200)
+        parser = TemplateParser(args)
+        pp(parser.template_file, width=200)
         sys.exit()
     pat = keyring.get_password('devops', 'pat')
     if not pat or args.update_pat:
@@ -197,7 +207,8 @@ def main():
     credentials = BasicAuthentication('', pat)
     org_url = f'https://dev.azure.com/{args.organization}'
     work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
-    task_creator = TaskCreator(args)
+    parser = TemplateParser(args)
+    task_creator = TaskCreator(args, work_item_tracking_client, parser.tasks)
     try:
         task_creator.create_tasks(work_item_tracking_client)
     except ClientException as e:
@@ -257,7 +268,7 @@ def parse_set_vars(var: str):
     return key, value
 
 
-def create_var_dict(set_vars):
+def create_var_dict(set_vars: list[list]) -> dict:
     vars = {}
     for entry in set_vars:
         vars[entry[0]] = entry[1]
