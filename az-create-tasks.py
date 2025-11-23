@@ -8,10 +8,7 @@ class TaskCreator:
         self.args = args
         self.template_file = self.args.template_file
         self.values = self.args.values
-        self.set_vars = (
-            create_var_dict(self.args.set) if self.args.set is not None
-            else None
-        )
+        self.set_vars = create_var_dict(self.args.set)
         self._substitute_placeholders()
 
     def _substitute_placeholders(self):
@@ -40,7 +37,7 @@ class TaskCreator:
         ):
             return self.values[index]
 
-        if key and self.set_vars is not None and key in self.set_vars:
+        if key and key in self.set_vars:
             return self.set_vars[key]
 
         return placeholder.group()
@@ -50,18 +47,25 @@ def main():
     parser = argparse.ArgumentParser(
         description='Create child tasks of work items')
     parser.add_argument(
-        'template_file', help='YAML file defining child tasks.', type=parse_yaml)
+        'template_file',
+        metavar='<template file>',
+        help='YAML file defining child tasks.',
+        type=parse_yaml
+    )
     parser.add_argument(
         '--set',
         action='append',
-        metavar='KEY=VALUE',
+        metavar='<key>=<value>',
         help='Define custom variables. In the template file, reference them with $KEY. Names cannot start with a digit.',
-        type=parse_set_vars
+        type=parse_set_vars,
+        default=[]
     )
     parser.add_argument(
-        'values',
-        help='Positional values to be substituted into placeholders $1,$2,... in the template file',
-        nargs='*'
+        '--values',
+        metavar='<value>',
+        help='Ordered values to be substituted into placeholders $1,$2,... in the template file',
+        nargs='+',
+        default=[]
     )
     args = parser.parse_args()
     task_creator = TaskCreator(args)
