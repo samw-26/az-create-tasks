@@ -61,18 +61,33 @@ class TaskCreator:
             ),
         ]
 
-        optional_fields = {
-            "System.AreaPath": context['area'],
-            "System.IterationPath": context['iteration'],
-            "System.AssignedTo": context['assigned']
+        fields = {
+            'System.AreaPath': context['area'],
+            'System.IterationPath': context['iteration'],
+            'System.AssignedTo': context['assigned'],
         }
 
-        for field, value in optional_fields.items():
-            if value:
+        relations = {
+            'System.LinkTypes.Hierarchy-Reverse': context['parent']
+        }
+
+        for field, value in fields.items():
+            if value is not None and value != '':
                 patch_document.append(JsonPatchOperation(
                     op='add',
                     path=f'/fields/{field}',
                     value=value
+                ))
+
+        for key, id in relations.items():
+            if id is not None:
+                patch_document.append(JsonPatchOperation(
+                    op='add',
+                    path='/relations/-',
+                    value={
+                        'rel': key,
+                        'url': f'{context["client"].normalized_url}/{self.args.project}/_apis/wit/workitems/{id}'
+                    }
                 ))
 
         work_item = context['client'].create_work_item(
@@ -86,11 +101,12 @@ class TaskCreator:
         for task in self.tasks:
             name = task['name']
             context = {
-                "client": work_item_tracking_client,
-                "name": name,
-                "area": self.args.area,
-                "iteration": self.args.iteration,
-                "assigned": task.get('assigned')
+                'client': work_item_tracking_client,
+                'name': name,
+                'area': self.args.area,
+                'iteration': self.args.iteration,
+                'assigned': task.get('assigned'),
+                'parent': self.args.parent
             }
             try:
                 link = self._create_task(context)
@@ -118,6 +134,12 @@ def main():
         'project',
         metavar='<project>',
         help='DevOps project'
+    )
+    parser.add_argument(
+        '--parent',
+        metavar='<parent id>',
+        help='Id of parent work item',
+        type=int
     )
     parser.add_argument(
         '--area',
