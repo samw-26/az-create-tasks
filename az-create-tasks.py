@@ -2,9 +2,12 @@ import yaml
 import argparse
 import re
 import os
-from azure.devops.connection import Connection
+import sys
 from msrest.authentication import BasicAuthentication
+from msrest.exceptions import ClientException
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient, JsonPatchOperation
+import keyring
+from getpass import getpass
 
 
 class TaskCreator:
@@ -47,13 +50,28 @@ class TaskCreator:
 
         return placeholder.group()
 
-    def create_tasks(self):
+    def _create_task(self, name, area, iteration, assigned_to):
         patch_document = [
             JsonPatchOperation(
                op='add',
                path='/fields/System.Title',
-               value='test'
+               value=name
             ),
+            JsonPatchOperation(
+                op='add',
+                path='/fields/System.AreaPath',
+                value=area
+            ),
+            JsonPatchOperation(
+                op='add',
+                path='/fields/System.IterationPath',
+                value=iteration
+            ),
+            JsonPatchOperation(
+                op='add',
+                path='/fields/System.AssignedTo',
+                value=assigned_to
+            )
         ]
         work_item = self.work_item_tracking_client.create_work_item(
             patch_document,
@@ -62,6 +80,8 @@ class TaskCreator:
         )
         return work_item._links.additional_properties['html']['href']
 
+    def create_tasks(self):
+        return self._create_task('test task', 'area', 'iteration', 'wiltonfamily1@live.ca')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -108,21 +128,28 @@ def main():
         default=[]
     )
     parser.add_argument(
-        '--pat',
-        metavar='<personal access token>',
-        help='Personal access token for Azure DevOps. By default uses the value of DEVOPS_PAT environment variable',
-        default=os.environ.get('DEVOPS_PAT')
+        '--update-pat',
+        help='When this flag is present, show prompt to enter new personal access token',
+        action='store_true',
     )
     args = parser.parse_args()
-    if not args.pat:
-        print('Personal access token not supplied')
-        exit()
-    credentials = BasicAuthentication('', args.pat)
+    pat = keyring.get_password('devops', 'pat');
+    if not pat or args.update_pat:
+        try:
+            pat = getpass('Enter Azure DevOps Personal Access Token: ')
+            keyring.set_password('devops', 'pat', pat)
+        except KeyboardInterrupt:
+            print()
+            sys.exit(1)
+    credentials = BasicAuthentication('', pat)
     org_url = f'https://dev.azure.com/{args.organization}'
     work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
     task_creator = TaskCreator(args, work_item_tracking_client)
-    work_item = task_creator.create_tasks()
-    print(work_item)
+    try:
+        work_item = task_creator.create_tasks()
+        print(work_item)
+    except ClientException as e:
+        print(e)
 
 def parse_yaml(file_name: str):
     VALID_TASK_PROPERTIES = ['name', 'assigned']
