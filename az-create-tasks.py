@@ -8,8 +8,10 @@ class TaskCreator:
         self.args = args
         self.template_file = self.args.template_file
         self.values = self.args.values
-        if self.args.set is not None:
-            self.set_vars = create_var_dict(self.args.set)
+        self.set_vars = (
+            create_var_dict(self.args.set) if self.args.set is not None
+            else None
+        )
         self.substitute_placeholders()
 
     def substitute_placeholders(self):
@@ -93,6 +95,8 @@ def parse_yaml(file_name: str):
 
     except FileNotFoundError:
         raise argparse.ArgumentTypeError('File not found')
+    except yaml.YAMLError as e:
+        raise argparse.ArgumentTypeError(e)
     return result
 
 
