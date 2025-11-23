@@ -1,11 +1,16 @@
 import yaml
 import argparse
 import re
+import os
+from azure.devops.connection import Connection
+from msrest.authentication import BasicAuthentication
+from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient, JsonPatchOperation
 
 
 class TaskCreator:
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace, work_item_tracking_client: WorkItemTrackingClient):
         self.args = args
+        self.work_item_tracking_client = work_item_tracking_client
         self.template_file = self.args.template_file
         self.values = self.args.values
         self.set_vars = create_var_dict(self.args.set)
@@ -42,6 +47,21 @@ class TaskCreator:
 
         return placeholder.group()
 
+    def create_tasks(self):
+        patch_document = [
+            JsonPatchOperation(
+               op='add',
+               path='/fields/System.Title',
+               value='test'
+            ),
+        ]
+        work_item = self.work_item_tracking_client.create_work_item(
+            patch_document,
+            project=self.args.project,
+            type='Task',
+        )
+        return work_item
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -63,12 +83,12 @@ def main():
         help='DevOps project'
     )
     parser.add_argument(
-        'area',
+        '--area',
         metavar='<area>',
         help='DevOps area path'
     )
     parser.add_argument(
-        'iteration',
+        '--iteration',
         metavar='<iteration>',
         help='DevOps iteration path'
     )
@@ -87,9 +107,22 @@ def main():
         nargs='+',
         default=[]
     )
+    parser.add_argument(
+        '--pat',
+        metavar='<personal access token>',
+        help='Personal access token for Azure DevOps. By default uses the value of DEVOPS_PAT environment variable',
+        default=os.environ.get('DEVOPS_PAT')
+    )
     args = parser.parse_args()
-    task_creator = TaskCreator(args)
-    print(args.template_file, args.set, args.values)
+    if not args.pat:
+        print('Personal access token not supplied')
+        exit()
+    credentials = BasicAuthentication('', args.pat)
+    org_url = f'https://dev.azure.com/{args.organization}'
+    work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
+    task_creator = TaskCreator(args, work_item_tracking_client)
+    work_item = task_creator.create_tasks()
+    print(work_item._links.html.href)
 
 
 def parse_yaml(file_name: str):
