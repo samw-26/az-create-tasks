@@ -1,7 +1,6 @@
 import yaml
 import argparse
 import re
-import os
 import sys
 from msrest.authentication import BasicAuthentication
 from msrest.exceptions import ClientException
@@ -15,12 +14,13 @@ class TaskCreator:
         self.args = args
         self.work_item_tracking_client = work_item_tracking_client
         self.template_file = self.args.template_file
+        self.tasks = self.template_file['tasks']
         self.values = self.args.values
         self.set_vars = create_var_dict(self.args.set)
         self._substitute_placeholders()
 
     def _substitute_placeholders(self):
-        for task in self.template_file['tasks']:
+        for task in self.tasks:
             for key, value in task.items():
                 task[key] = re.sub(
                     r'\$((?P<index>[0-9]+)|(?P<key>\w+))',
@@ -50,29 +50,29 @@ class TaskCreator:
 
         return placeholder.group()
 
-    def _create_task(self, name, area, iteration, assigned_to):
+    def _create_task(self, name, area=None, iteration=None, assigned_to=None):
         patch_document = [
             JsonPatchOperation(
                op='add',
                path='/fields/System.Title',
                value=name
             ),
-            JsonPatchOperation(
-                op='add',
-                path='/fields/System.AreaPath',
-                value=area
-            ),
-            JsonPatchOperation(
-                op='add',
-                path='/fields/System.IterationPath',
-                value=iteration
-            ),
-            JsonPatchOperation(
-                op='add',
-                path='/fields/System.AssignedTo',
-                value=assigned_to
-            )
         ]
+
+        optional_fields = {
+            "System.AreaPath": area,
+            "System.IterationPath": iteration,
+            "System.AssignedTo": assigned_to
+        }
+
+        for field, value in optional_fields.items():
+            if value:
+                patch_document.append(JsonPatchOperation(
+                    op='add',
+                    path=f'/fields/{field}',
+                    value=value
+                ))
+
         work_item = self.work_item_tracking_client.create_work_item(
             patch_document,
             project=self.args.project,
@@ -81,7 +81,14 @@ class TaskCreator:
         return work_item._links.additional_properties['html']['href']
 
     def create_tasks(self):
-        return self._create_task('test task', 'area', 'iteration', 'wiltonfamily1@live.ca')
+        for task in self.tasks:
+            name = task['name']
+            try:
+                link = self._create_task(name, self.args.area, self.args.iteration, task['assigned'])
+                print(f'Created task {name}: {link}')
+            except ClientException as e:
+                print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -146,8 +153,7 @@ def main():
     work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
     task_creator = TaskCreator(args, work_item_tracking_client)
     try:
-        work_item = task_creator.create_tasks()
-        print(work_item)
+        task_creator.create_tasks()
     except ClientException as e:
         print(e)
 
