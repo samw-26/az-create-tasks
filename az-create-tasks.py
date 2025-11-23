@@ -12,18 +12,18 @@ class TaskCreator:
             create_var_dict(self.args.set) if self.args.set is not None
             else None
         )
-        self.substitute_placeholders()
+        self._substitute_placeholders()
 
-    def substitute_placeholders(self):
+    def _substitute_placeholders(self):
         for task in self.template_file['tasks']:
             for key, value in task.items():
                 task[key] = re.sub(
                     r'\$((?P<index>[0-9]+)|(?P<key>\w+))',
-                    self.get_sub_value,
+                    self._get_sub_value,
                     value
                 )
 
-    def get_sub_value(self, placeholder: re.Match) -> str:
+    def _get_sub_value(self, placeholder: re.Match) -> str:
         placeholder_index = placeholder.group('index')
         key = placeholder.group('key')
         index = (
