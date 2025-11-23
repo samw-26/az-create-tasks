@@ -1,5 +1,6 @@
 import yaml
 import argparse
+import re
 
 def main():
     parser = argparse.ArgumentParser(description='Create child tasks of work items')
@@ -20,6 +21,7 @@ def main():
     print(args.template_file, args.set, args.values)
 
 def parse_yaml(file_name):
+    VALID_TASK_PROPERTIES = ['name', 'assigned']
     try:
         with open(file_name, 'r') as f:
             result = yaml.safe_load(f)
@@ -30,8 +32,13 @@ def parse_yaml(file_name):
         if not isinstance(result['tasks'], list):
             raise argparse.ArgumentTypeError('tasks is not an array')
         for i, task in enumerate(result['tasks']):
+            task_number = i + 1
+            for key in task:
+                if key not in VALID_TASK_PROPERTIES:
+                    raise argparse.ArgumentTypeError(f'Invalid key in Task {task_number}: {key}')
             if 'name' not in task:
-                raise argparse.ArgumentTypeError(f"Task {i + 1} does not have name")
+                raise argparse.ArgumentTypeError(f'Task {task_number} does not have name')
+            
     except FileNotFoundError:
         raise argparse.ArgumentTypeError('File not found')
     return result
