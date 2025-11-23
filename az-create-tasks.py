@@ -2,6 +2,7 @@ import yaml
 import argparse
 import re
 import sys
+from pprint import pp
 from msrest.authentication import BasicAuthentication
 from msrest.exceptions import ClientException
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient, JsonPatchOperation
@@ -10,9 +11,8 @@ from getpass import getpass
 
 
 class TaskCreator:
-    def __init__(self, args: argparse.Namespace, work_item_tracking_client: WorkItemTrackingClient):
+    def __init__(self, args: argparse.Namespace):
         self.args = args
-        self.work_item_tracking_client = work_item_tracking_client
         self.template_file = self.args.template_file
         self.tasks = self.template_file['tasks']
         self.values = self.args.values
@@ -50,19 +50,19 @@ class TaskCreator:
 
         return placeholder.group()
 
-    def _create_task(self, name, area=None, iteration=None, assigned_to=None):
+    def _create_task(self, context):
         patch_document = [
             JsonPatchOperation(
                op='add',
                path='/fields/System.Title',
-               value=name
+               value=context['name']
             ),
         ]
 
         optional_fields = {
-            "System.AreaPath": area,
-            "System.IterationPath": iteration,
-            "System.AssignedTo": assigned_to
+            "System.AreaPath": context['area'],
+            "System.IterationPath": context['iteration'],
+            "System.AssignedTo": context['assigned']
         }
 
         for field, value in optional_fields.items():
@@ -73,18 +73,25 @@ class TaskCreator:
                     value=value
                 ))
 
-        work_item = self.work_item_tracking_client.create_work_item(
+        work_item = context['client'].create_work_item(
             patch_document,
             project=self.args.project,
             type='task',
         )
         return work_item._links.additional_properties['html']['href']
 
-    def create_tasks(self):
+    def create_tasks(self, work_item_tracking_client: WorkItemTrackingClient):
         for task in self.tasks:
             name = task['name']
+            context = {
+                "client": work_item_tracking_client,
+                "name": name,
+                "area": self.args.area,
+                "iteration": self.args.iteration,
+                "assigned": task['assigned']
+            }
             try:
-                link = self._create_task(name, self.args.area, self.args.iteration, task['assigned'])
+                link = self._create_task(context)
                 print(f'Created task {name}: {link}')
             except ClientException as e:
                 print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
@@ -139,8 +146,17 @@ def main():
         help='When this flag is present, show prompt to enter new personal access token',
         action='store_true',
     )
+    parser.add_argument(
+        '--dry-run',
+        help='Prints the tasks defined in the yaml file with their variable substitutions',
+        action='store_true'
+    )
     args = parser.parse_args()
-    pat = keyring.get_password('devops', 'pat');
+    if args.dry_run:
+        dry_task_creator = TaskCreator(args)
+        pp(dry_task_creator.template_file, width=200)
+        sys.exit()
+    pat = keyring.get_password('devops', 'pat')
     if not pat or args.update_pat:
         try:
             pat = getpass('Enter Azure DevOps Personal Access Token: ')
@@ -151,9 +167,9 @@ def main():
     credentials = BasicAuthentication('', pat)
     org_url = f'https://dev.azure.com/{args.organization}'
     work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
-    task_creator = TaskCreator(args, work_item_tracking_client)
+    task_creator = TaskCreator(args)
     try:
-        task_creator.create_tasks()
+        task_creator.create_tasks(work_item_tracking_client)
     except ClientException as e:
         print(e)
 
