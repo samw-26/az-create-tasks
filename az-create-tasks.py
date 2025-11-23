@@ -58,9 +58,9 @@ class TaskCreator:
         work_item = self.work_item_tracking_client.create_work_item(
             patch_document,
             project=self.args.project,
-            type='Task',
+            type='task',
         )
-        return work_item
+        return work_item._links.additional_properties['html']['href']
 
 
 def main():
@@ -122,8 +122,7 @@ def main():
     work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
     task_creator = TaskCreator(args, work_item_tracking_client)
     work_item = task_creator.create_tasks()
-    print(work_item._links.html.href)
-
+    print(work_item)
 
 def parse_yaml(file_name: str):
     VALID_TASK_PROPERTIES = ['name', 'assigned']
