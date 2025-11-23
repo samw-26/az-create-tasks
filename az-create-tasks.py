@@ -53,6 +53,26 @@ def main():
         type=parse_yaml
     )
     parser.add_argument(
+        'organization',
+        metavar='<organization>',
+        help='DevOps organization'
+    )
+    parser.add_argument(
+        'project',
+        metavar='<project>',
+        help='DevOps project'
+    )
+    parser.add_argument(
+        'area',
+        metavar='<area>',
+        help='DevOps area path'
+    )
+    parser.add_argument(
+        'iteration',
+        metavar='<iteration>',
+        help='DevOps iteration path'
+    )
+    parser.add_argument(
         '--set',
         action='append',
         metavar='<key>=<value>',
