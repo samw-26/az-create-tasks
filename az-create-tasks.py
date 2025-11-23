@@ -90,11 +90,12 @@ class TaskCreator:
                 "name": name,
                 "area": self.args.area,
                 "iteration": self.args.iteration,
-                "assigned": task['assigned']
+                "assigned": task.get('assigned')
             }
             try:
                 link = self._create_task(context)
-                print(f'Created task {name}: {link}')
+                if not self.args.silent:
+                    print(f'Created task {name}: {link}')
             except ClientException as e:
                 print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
 
@@ -153,6 +154,11 @@ def main():
         help='Prints the tasks defined in the yaml file with their variable substitutions',
         action='store_true'
     )
+    parser.add_argument(
+        '-s', '--silent',
+        help='Suppress log messages',
+        action='store_true'
+    )
     args = parser.parse_args()
     if args.dry_run:
         dry_task_creator = TaskCreator(args)
@@ -186,6 +192,12 @@ def parse_yaml(file_name: str):
             raise argparse.ArgumentTypeError('"tasks" key not in yaml file')
         if not isinstance(result['tasks'], list):
             raise argparse.ArgumentTypeError('tasks is not an array')
+
+        task_key_types = {
+            'name': str,
+            'assigned': str
+        }
+
         for i, task in enumerate(result['tasks']):
             task_number = i + 1
             has_name = False
@@ -195,6 +207,11 @@ def parse_yaml(file_name: str):
                         f'Invalid key in Task {task_number}: {key}')
                 if key == 'name':
                     has_name = True
+                if type(task[key]) != task_key_types[key]:
+                    raise argparse.ArgumentTypeError(
+                        f'Task {task_number} key "{key}" has an invalid type. '
+                        + f'Expected {task_key_types[key]}, but received {type(task[key])}'
+                    )
 
             if not has_name:
                 raise argparse.ArgumentTypeError(
@@ -213,7 +230,7 @@ def parse_set_vars(var: str):
             f'Invalid key name, key cannot start with digit: {var}')
     if '=' not in var:
         raise argparse.ArgumentTypeError(
-            f'Invalid format, expected: "KEY=VALUE", received: "{var}"')
+            f'Invalid format, expected "key=value", but received "{var}"')
     key, value = var.split('=', 1)
     return key, value
 
