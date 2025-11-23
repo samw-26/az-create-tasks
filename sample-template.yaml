@@ -1,0 +1,18 @@
+tasks:
+  - name: Design
+    assigned: $1
+
+  - name: Code
+    assigned: $1
+
+  - name: Unit test
+    assigned: $1
+
+  - name: Code review
+    assigned: $2
+
+  - name: Code review feedback
+    assigned: $1
+
+  - name: WCAG Unit Test
+    assigned: $1
