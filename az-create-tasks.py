@@ -57,10 +57,13 @@ class TaskCreator:
         self.args = args
         self.client = client
         self.tasks = tasks
-        self.base_url = client.normalized_url
+        self.base_url: str = client.normalized_url
+        self.project: str = self.args.project
+        self.area: str = self.args.area
+        self.iteration: str = self.args.iteration
 
-    def _get_work_item_url(self):
-        return f'https://dev.azure.com/{self.args.organization}'
+    def _get_work_item(self, id: int, fields: list[str] | None = None):
+        return self.client.get_work_item(id, self.project, fields)
 
     def _create_task(self, context):
         patch_document = [
@@ -96,7 +99,7 @@ class TaskCreator:
                     path='/relations/-',
                     value={
                         'rel': key,
-                        'url': f'{context["client"].normalized_url}/{self.args.project}/_apis/wit/workitems/{id}'
+                        'url': f'{self.base_url}/{self.args.project}/_apis/wit/workitems/{id}'
                     }
                 ))
 
@@ -107,24 +110,40 @@ class TaskCreator:
         )
         return work_item._links.additional_properties['html']['href']
 
-    def create_tasks(self, work_item_tracking_client: WorkItemTrackingClient):
-        for parent in self.args.parents:
-            for task in self.tasks:
-                name = task['name']
-                context = {
-                    'client': work_item_tracking_client,
-                    'name': name,
-                    'area': self.args.area,
-                    'iteration': self.args.iteration,
-                    'assigned': task.get('assigned'),
-                    'parent': parent
-                }
-                try:
-                    link = self._create_task(context)
-                    if not self.args.silent:
-                        print(f'Created task {name}: {link}')
-                except ClientException as e:
-                    print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
+    def _iterate_tasks(self, client: WorkItemTrackingClient, parent: int | None = None):
+        for task in self.tasks:
+            name = task['name']
+            if parent is not None:
+                parent_item = self._get_work_item(parent, ['System.AreaPath', 'System.IterationPath'])
+                area = parent_item.fields['System.AreaPath']
+                iteration = parent_item.fields['System.IterationPath']
+            else:
+                area = self.area
+                iteration = self.iteration
+
+            context = {
+                'client': client,
+                'name': name,
+                'area': area,
+                'iteration': iteration,
+                'assigned': task.get('assigned'),
+                'parent': parent
+            }
+            try:
+                link = self._create_task(context)
+                if not self.args.silent:
+                    print(f'Created task {name}: {link}')
+            except ClientException as e:
+                print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
+
+    def create_tasks(self, client: WorkItemTrackingClient):
+        parents = self.args.parents
+        if not len(parents):
+            self._iterate_tasks(client)
+        else:
+            for parent in parents:
+                self._iterate_tasks(client, parent)
+
 
 
 def main():
@@ -149,7 +168,7 @@ def main():
     parser.add_argument(
         '--parents',
         metavar='<parent id>',
-        help='Id of parent work item',
+        help='Ids of the parent work items. Tasks created will use their parent\'s area and iteration paths.',
         nargs='+',
         default=[],
         type=int
@@ -157,12 +176,12 @@ def main():
     parser.add_argument(
         '--area',
         metavar='<area>',
-        help='DevOps area path'
+        help='DevOps area path. Only applicable when no parents are given.'
     )
     parser.add_argument(
         '--iteration',
         metavar='<iteration>',
-        help='DevOps iteration path'
+        help='DevOps iteration path. Only applicable when no parents are given.'
     )
     parser.add_argument(
         '--set',
