@@ -108,22 +108,23 @@ class TaskCreator:
         return work_item._links.additional_properties['html']['href']
 
     def create_tasks(self, work_item_tracking_client: WorkItemTrackingClient):
-        for task in self.tasks:
-            name = task['name']
-            context = {
-                'client': work_item_tracking_client,
-                'name': name,
-                'area': self.args.area,
-                'iteration': self.args.iteration,
-                'assigned': task.get('assigned'),
-                'parent': self.args.parent
-            }
-            try:
-                link = self._create_task(context)
-                if not self.args.silent:
-                    print(f'Created task {name}: {link}')
-            except ClientException as e:
-                print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
+        for parent in self.args.parents:
+            for task in self.tasks:
+                name = task['name']
+                context = {
+                    'client': work_item_tracking_client,
+                    'name': name,
+                    'area': self.args.area,
+                    'iteration': self.args.iteration,
+                    'assigned': task.get('assigned'),
+                    'parent': parent
+                }
+                try:
+                    link = self._create_task(context)
+                    if not self.args.silent:
+                        print(f'Created task {name}: {link}')
+                except ClientException as e:
+                    print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
 
 
 def main():
@@ -146,9 +147,11 @@ def main():
         help='DevOps project'
     )
     parser.add_argument(
-        '--parent',
+        '--parents',
         metavar='<parent id>',
         help='Id of parent work item',
+        nargs='+',
+        default=[],
         type=int
     )
     parser.add_argument(
