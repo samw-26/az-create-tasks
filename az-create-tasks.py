@@ -107,34 +107,37 @@ class TaskCreator:
             patch_document,
             project=self.args.project,
             type='task',
+            validate_only=self.args.dry_run
         )
-        return work_item._links.additional_properties['html']['href']
+        return None if self.args.dry_run else work_item._links.additional_properties['html']['href']
 
     def _iterate_tasks(self, client: WorkItemTrackingClient, parent: int | None = None):
         for task in self.tasks:
             name = task['name']
-            if parent is not None:
-                parent_item = self._get_work_item(parent, ['System.AreaPath', 'System.IterationPath'])
-                area = parent_item.fields['System.AreaPath']
-                iteration = parent_item.fields['System.IterationPath']
-            else:
-                area = self.area
-                iteration = self.iteration
-
-            context = {
-                'client': client,
-                'name': name,
-                'area': area,
-                'iteration': iteration,
-                'assigned': task.get('assigned'),
-                'parent': parent
-            }
             try:
+                if parent is not None:
+                    parent_item = self._get_work_item(parent, ['System.AreaPath', 'System.IterationPath'])
+                    area = parent_item.fields['System.AreaPath']
+                    iteration = parent_item.fields['System.IterationPath']
+                else:
+                    area = self.area
+                    iteration = self.iteration
+
+                context = {
+                    'client': client,
+                    'name': name,
+                    'area': area,
+                    'iteration': iteration,
+                    'assigned': task.get('assigned'),
+                    'parent': parent
+                }
                 link = self._create_task(context)
-                if not self.args.silent:
+                if not self.args.silent and link:
                     print(f'Created task {name}: {link}')
             except ClientException as e:
                 print(f'\033[31mException occured when creating task {name}: {e}\033[0m')
+                print('Stopping execution...')
+                sys.exit(1)
 
     def create_tasks(self, client: WorkItemTrackingClient):
         parents = self.args.parents
@@ -148,7 +151,7 @@ class TaskCreator:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Create child tasks of work items')
+        description='Create child tasks of work items.')
     parser.add_argument(
         'template_file',
         metavar='<template file>',
@@ -205,7 +208,7 @@ def main():
     )
     parser.add_argument(
         '--dry-run',
-        help='Prints the tasks defined in the yaml file with their variable substitutions',
+        help='Prints the tasks defined in the yaml file with their variable substitutions. Validates creating work items.',
         action='store_true'
     )
     parser.add_argument(
@@ -213,28 +216,24 @@ def main():
         help='Suppress log messages',
         action='store_true'
     )
-    args = parser.parse_args()
-    if args.dry_run:
-        parser = TemplateParser(args)
-        pp(parser.template_file, width=200)
-        sys.exit()
-    pat = keyring.get_password('devops', 'pat')
-    if not pat or args.update_pat:
-        try:
-            pat = getpass('Enter Azure DevOps Personal Access Token: ')
-            keyring.set_password('devops', 'pat', pat)
-        except KeyboardInterrupt:
-            print()
-            sys.exit(1)
-    credentials = BasicAuthentication('', pat)
-    org_url = f'https://dev.azure.com/{args.organization}'
-    work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
-    parser = TemplateParser(args)
-    task_creator = TaskCreator(args, work_item_tracking_client, parser.tasks)
     try:
+        args = parser.parse_args()
+        pat = keyring.get_password('devops', 'pat')
+        if not pat or args.update_pat:
+                pat = getpass('Enter Azure DevOps Personal Access Token: ')
+                keyring.set_password('devops', 'pat', pat)
+        credentials = BasicAuthentication('', pat)
+        org_url = f'https://dev.azure.com/{args.organization}'
+        work_item_tracking_client = WorkItemTrackingClient(org_url, credentials)
+        parser = TemplateParser(args)
+        if args.dry_run:
+            pp(parser.template_file, width=200)
+
+        task_creator = TaskCreator(args, work_item_tracking_client, parser.tasks)
         task_creator.create_tasks(work_item_tracking_client)
-    except ClientException as e:
-        print(e)
+    except KeyboardInterrupt:
+        print()
+        sys.exit(1)
 
 def parse_yaml(file_name: str):
     VALID_TASK_PROPERTIES = ['name', 'assigned']
