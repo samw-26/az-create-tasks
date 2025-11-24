@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling >= 1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "az_create_tasks"
+version = "0.1.0"
+authors = [
+  { name="Samuel Wilton" }
+]
+keywords = ["azure", "devops", "cli"]
+description = "Cli tool to create child tasks on user stories in Azure DevOps."
+dependencies = [
+  "azure-devops>=7.1.0b4",
+  "msrest>=0.7.1",
+  "PyYAML>=6.0.3",
+  "keyring>=25.7.0",
+]
+readme="README.md"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+[project.scripts]
+az-create-tasks = "az_create_tasks.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/samw-26/az-create-tasks"
+Issues = "https://github.com/samw-26/az-create-tasks/issues"

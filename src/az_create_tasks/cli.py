@@ -4,9 +4,9 @@ from msrest.authentication import BasicAuthentication
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 import keyring
 from getpass import getpass
-from template_parser import TemplateParser
-from task_creator import TaskCreator
-from parser import Parser
+from az_create_tasks.template_parser import TemplateParser
+from az_create_tasks.task_creator import TaskCreator
+from az_create_tasks.parser import Parser
 
 def main():
     try:
