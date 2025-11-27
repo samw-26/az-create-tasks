@@ -42,7 +42,7 @@ It is recommended that you run your defined command with the `--dry-run` option 
 - Print the values for each task with variables substituted. Useful for checking if values are as expected.
 - Validate that the tasks with the given field values can be created without creating them. If the task cannot be created, an error will be thrown.
 
-The first run of the program will prompt you to enter your Azure DevOps personal access token. Read [here](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Windows#create-a-pat) for how to create them. Copy and paste it into the terminal when prompted.
+The first run of the program will prompt you to enter your Azure DevOps personal access token. Read [here](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Windows#create-a-pat) for how to create them. This program requires work item read and write permissions. Copy and paste the token into the terminal when prompted.
 If you need to change your access token, run the command with `--update-pat` to prompt for a new token.
 
 Example:
